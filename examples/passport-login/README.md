@@ -7,19 +7,23 @@ A tutorial for implementing authentication in LoopBack 4 using
 - [Prerequisites](#prerequisites)
 - [Install](#install-the-example-locally)
 - [Tutorial - Facebook](#Try-it-out-with-FaceBook)
+- [Tutorial - Google](#Try-it-out-with-Google)
 
 ## Overview
 
 This example demonstrates how to use the LoopBack 4 features (like
 `@authenticate` decorator, strategy providers, etc) with
-[passport strategies](http://passportjs.org). It includes the local strategy as
-well as oauth2 strategies to interact with external OAuth providers like
-facebook, google,etc.
+[passport strategies](http://passportjs.org). It includes the oauth2 strategies
+to interact with external OAuth providers like facebook, google,etc as well as
+local and basic strategies.
+
+You can use this example to see how to,
 
 - Log in or Sign up into a LoopBack App using passport strategy modules
 - Log in via external apps like Facebook or link those external profiles with a
   LoopBack user (for example, a LoopBack user can have associated
   facebook/google accounts to retrieve pictures).
+- Use basic or local passport strategy modules
 
 ## Prerequisites
 
@@ -200,3 +204,11 @@ http://loopback.io/doc/en/lb2/Configuring-providers.json.html.
       "failureFlash": true
   }
   ```
+
+### Log in with Google
+
+- Open your browser to the example app with, `http://localhost:3000`
+- Click on 'Log In' from the example app header menu
+- Click on 'Log In with Google' button
+- Google login page opens, enter google user-id and password
+- example app loads again on successful login
