@@ -24,9 +24,17 @@ Migration of the following component is out of scope of this spike:
   - [API transports](#api-transports)
   - [Authentication & authorization](#authentication--authorization)
   - [Introspection](#introspection)
-- [Migration of component layout & instructions from mounting to an app](#migration-of-component-layout--instructions-from-mounting-to-an-app)
+- [Migration](#migration)
+  - [Component layout & instructions for mounting to an app](#component-layout--instructions-for-mounting-to-an-app)
   - [LB3 component layout & mounting](#lb3-component-layout--mounting)
   - [Migration to LB4](#migration-to-lb4)
+  - [Migrate context](#migrate-context)
+  - [Migrate mixins](#migrate-mixins)
+  - [Migrate Models, Entities and Repositories](#migrate-models-entities-and-repositories)
+  - [Migrate REST API](#migrate-rest-api)
+  - [Migrate API transports](#migrate-api-transports)
+  - [Authentication & authorization](#authentication--authorization-1)
+  - [Migrate Introspection](#migrate-introspection)
 - [Overview of existing LB3 components](#overview-of-existing-lb3-components)
   - [Push notifications](#push-notifications)
   - [Storage component](#storage-component)
@@ -51,16 +59,6 @@ coming from._
 1. Expected component module layout and exports. How to structure the extension
    code to receive user-provided configuration & target app instance. What are
    the instructions for adding a LB4 component to a LB4 app.
-
-   TODOs for the migration guide based on @raymondfeng comments:
-
-   - Describe what a LB3 component can contribute to the application when it's
-     mounted.
-   - Maybe a diagram would help if it shows the handshake between an application
-     and a component as well as typical artifacts exported from a component.
-   - To some extent, a LB3 application asks its components to extend/patch the
-     app. In contrast, a LB4 application imports bindings (representing the
-     component's contribution to the app) from its components.
 
 2. A context shared by all parts of the application, allowing different layers
    to store and retrieve values like "the current user". In LB3, we have
@@ -203,9 +201,21 @@ coming from._
     information necessary to configure reverse-proxy routing rules (Kong, nginx,
     etc.).
 
-## Migration of component layout & instructions from mounting to an app
+## Migration
 
-### LB3 component layout & mounting
+### Component layout & instructions for mounting to an app
+
+TODOs for the migration guide based on @raymondfeng comments:
+
+- Describe what a LB3 component can contribute to the application when it's
+  mounted.
+- Maybe a diagram would help if it shows the handshake between an application
+  and a component as well as typical artifacts exported from a component.
+- To some extent, a LB3 application asks its components to extend/patch the app.
+  In contrast, a LB4 application imports bindings (representing the component's
+  contribution to the app) from its components.
+
+#### LB3 component layout & mounting
 
 A LB3 component is implemented as a function accepting the target app object and
 the configuration options.
@@ -233,7 +243,7 @@ For example:
 This allows the component to receive configuration. App developers can provide
 environment-specific configuration by using `component-config.{env}.json` files.
 
-### Migration to LB4
+#### Migration to LB4
 
 - How to add a component to a LB4 application?
 - How to configure the component?
@@ -292,6 +302,303 @@ export class MetricsComponent implements Component {
   // ...
 }
 ```
+
+### Migrate context
+
+> A context shared by all parts of the application, allowing different layers to
+> store and retrieve values like "the current user". In LB3, we have
+> `loopback-context` based on continuation-local-storage and `options`-based
+> context propagation.
+
+In LoopBack 4, extensions should use `@inject` decorators to access contextual
+information. For example:
+
+- `@inject(key)` and `@inject.getter(key)` to receive values from the context
+- `@inject.setter(key)` to obtain a setter function for writing values to the
+  context
+
+Components can keep using the old `options`-based approach where it makes more
+sense than Dependency Injection and especially when working with existing
+`options`-based code like Repository APIs.
+
+### Migrate mixins
+
+1. Follow the steps described in
+   [Migrating model mixins ](https://loopback.io/doc/en/lb4/migration-models-mixins.html)
+   to convert your mixin implementation to LB4 style.
+
+2. Modify your component to export ES6 class mixins - add `export` statements to
+   components `src/index.ts` file.
+
+3. Update your documentation to show how to apply the mixins in LoopBack 4
+   applications,
+   see[Migrating model mixins ](https://loopback.io/doc/en/lb4/migration-models-mixins.html)
+   for more details.
+
+### Migrate Models, Entities and Repositories
+
+> Contribute custom models (Notification) describing shape of data expected by
+> the services (Push service). These models are not backed by any datasource,
+> they are primarily used to describe data fields.
+
+1. Create a small LB3 app using your component.
+
+2. In your LB4 extension project, run `lb4 import-lb3-models` to import model(s)
+   contributed by the component from the LB3 app. Change the base class of the
+   imported model from `Entity` to `Model` if needed.
+
+3. Ensure that your main index file exports all models:
+
+   ```ts
+   // src/index.ts
+   export * from './models';
+   ```
+
+4. Update your documentation to instruct users to import the models directly
+   instead of relying on loopback-boot to pick them up.
+
+   ```ts
+   import {MyModel} from 'my-extension';
+   ```
+
+> Contribute custom entities (Application, Installation) to be persisted via
+> CRUD, exposed via REST and possibly further customized by the app.
+> Customization options include which datasource to use, the base path where
+> REST API is exposed (e.g. `/api/apps` and `/api/devices`), additional fields
+> (e.g. `Application.tenantId`) and changes in persistence behavior (e.g. via
+> Operation Hooks)
+
+TBD
+
+> Add a custom Operation Hook to given models, with a config option to
+> enable/disable this feature. The list of models can be provided explicitly in
+> the component configuration or obtained dynamically via introspection (e.g.
+> all models having a "belongsTo" relation with the Group model)
+
+TBD
+
+> Add a custom Operation Hook to all app models matching given criteria (have a
+> "belongsTo" relation with the Group model, are listed in the component
+> config), plus a config option to enable/disable this feature.
+
+TBD
+
+> Add new relations, e.g. between an app-provided entity `User` and a
+> component-provided entity `File`. In this variant, the relation is added on
+> small fixed number of models.
+
+TBD
+
+> A model mixing adding new relations (`hasMany ModelEvents`), installing
+> Operation Hooks (to generate model events/audit log entries), adding new
+> Repository APIs (for working with related model events).
+>
+> _(The mixin-based design may be difficult to accomplish in LB4, we may want to
+> use introspection and a model setting instead. The trickier part is how to
+> apply changes to models added after the component was mounted.)_
+
+TBD
+
+> For all models with a flag enabled in model settings, setup a custom
+> `afterRemote` hook to modify the HTTP response (e.g. add additional headers).
+
+### Migrate REST API
+
+In general, we are missing documentation explaining extension authors:
+
+1. How can their extension contribute controllers to the targe app.
+2. How to make the base path configurable by the target application.
+3. How to add/remove controller methods based on user-provided configuration.
+
+At the moment, we are using the following workaround in
+[packages/rest-explorer/src/rest-explorer.component.ts](../../packages/rest-explorer/src/rest-explorer.component.ts):
+
+- In extension constructor, register all controller routes at the given base
+  path.
+
+This is not great, but solves the following two requirements:
+
+- Customize the base path of controller endpoints
+- Exclude certain controller endpoints based on configuration
+
+We should look into ways how to make this registration step simpler. Few options
+that come to my mind:
+
+1. At the moment, components are exporting an array of controller classes:
+
+   ```ts
+   export interface Component {
+     /**
+      * An array of controller classes
+      */
+     controllers?: ControllerClass[];
+     // ...
+   }
+   ```
+
+   Can we enhance this contract to allow components to specify additional
+   metadata like the base path where to mount the controller and a list of
+   endpoints which to expose?
+
+2. Create the controller class dynamically using the approach pioneered by
+   [`defineCrudRestController()`](../../packages/rest-crud/src/crud-rest.controller.ts).
+   This makes it easy to tweak endpoint paths, I am not sure how easy it is to
+   add/remove controller methods based on config.
+
+We need to create follow-up tasks to:
+
+- decide what should be the recommended solution
+- implement the necessary runtime support
+- update existing code (e.g. `packages/rest-explorer`) to follow the new style
+- write documentation for extension authors - add a new page to
+  [Extending LoopBack 4](https://loopback.io/doc/en/lb4/Extending-LoopBack-4.html).
+
+We can approach this incrementally:
+
+1. Start with documenting the basic setup where the REST API is not configurable
+   (just add the controller class to `this.controllers` array).
+
+2. Find & document a solution for configurable REST APIs.
+
+**The following content is based on the assumption that such documentation
+already exists.**
+
+> Add a new REST API endpoint to every (public) model/entity provided by the
+> app, e.g. `GET /api/{model}/schema` returning JSON schema of the model.
+
+First, we need to find all publicly exposed models. This is tricky in LB4,
+because there is no direct mapping between models and REST API endpoints. REST
+APIs are implemented by Controllers, there may be more than one Controller for
+each Model (e.g. `ProductController` and `ProductCategoryController`).
+
+I am arguing that the particular use case of accessing JSON schema of a model is
+not relevant in LB4, because model schema can be obtained from the OpenAPI spec
+document provided by all LB4 applications out of the box.
+
+Let's not provide any migration guide for this technique for now. We can wait
+until there is user demand and then build a better understanding of user
+requirements before looking for LB4 solution.
+
+> Add a new REST API endpoint at a configured path, e.g. `/visualize` returning
+> an HTML page.
+
+We have a working example at
+[packages/rest-explorer/src/rest-explorer.component.ts](../../packages/rest-explorer/src/rest-explorer.component.ts).
+
+1. Create a new Controller class
+
+2. Move REST API endpoints to this controller class
+
+3. In the controller constructor, inject the HTTP response.
+
+4. In controller methods, use Express API like `res.contentType()` and
+   `res.send()` to send back the result. (This is a workaround until
+   https://github.com/strongloop/loopback-next/issues/436 is implemented).
+
+5. Decide if you want these endpoints included in OpenAPI spec. Use the
+   following operation spec to hide them:
+
+   ```ts
+   {
+     'x-visibility': 'undocumented',
+     responses: {},
+   }
+   ```
+
+6. Follow the guide-to-be-written in "Extending LoopBack 4" to let the extension
+   contribute this new controller to the target app in a configurable way.
+
+> REST API endpoints providing file upload & download.
+
+Rewrite your LB3 remote methods to LB4 controllers, see
+[Upload and download files ](https://loopback.io/doc/en/lb4/File-upload-download.html)
+for more details.
+
+Follow the guide-to-be-written in "Extending LoopBack 4" to let the extension
+contribute this new controller to the target app in a configurable way.
+
+> Add a new local service (e.g. `Ping.ping()`) and expose it via REST API (e.g.
+> `/ping`), allow the user to customize the base path where the API is exposed
+> at (e.g. `/pong`).
+
+1. Use `lb4 service` to create the new service class.
+2. Move the implementation from LB3 model methods to LB4 service methods.
+3. TBD: how can an extension contribute service classes? (see below)
+4. Create a new Controller class to expose service methods via REST API.
+5. Follow the guide-to-be-written in "Extending LoopBack 4" to let the extension
+   contribute this new controller to the target app in a configurable way.
+
+We are missing documentation for extension authors showing how to contribute
+services to application context.
+
+Here is what I found in the existing code:
+
+- [ServiceBooter](../../packages/boot/src/booters/service.booter.ts) requires
+  service classes to be decorated with `@bind()`, which is true for service
+  classes scaffolded via `lb4 services`.
+- The booter calls `app.service()` API under the hood.
+- `app.service()` uses a (public?) helper `createServiceBinding()` that handles
+  the special case where the service class is a provider, otherwise delegates
+  the work to `createBindingFromClass`.
+- Once we have a binding, we can add it to extension's `bindings` property which
+  contains a list o bindings to be added to the target application.
+
+Based on the above, I think we should recommend the following solution:
+
+```ts
+import {createServiceBinding} from '@loopback/core';
+import {MyService} from './services/my.service.ts';
+import {GeocodeServiceProvider} from './services/geocoder.service.ts';
+
+export class SampleComponent implements Component {
+  bindings = [
+    createServiceBinding(MyService),
+    createServiceBinding(GeocoderServiceProvider),
+  ];
+}
+```
+
+Additional tasks to create:
+
+- Write documentation for extension authors on contributing services - add a new
+  page to
+  [Extending LoopBack 4](https://loopback.io/doc/en/lb4/Extending-LoopBack-4.html).
+
+> Intercept REST requests handled by an endpoint contributed by a 3rd-party
+> controller to invoke additional logic before the controller method is called
+> (e.g. automatically create containers when uploading files) and after the
+> controller method returned (e.g. post-process the uploaded file).
+
+TBD
+
+> Add new REST API endpoints using Express `(req, res, next)` style.
+
+1. Rework your extension to create a new `express.Router` instance and define
+   your REST API endpoints on that router instance.
+
+2. In extension constructor, use `app.mountExpressRouter` to add your routes to
+   the target LB4 application. Optionally you can also provide OpenAPI spec to
+   describe the new endpoints contributed by your extension. Learn more in
+   [Mounting an Express router](https://loopback.io/doc/en/lb4/Routes.html#mounting-an-express-router).
+
+As a better alternative, we recommend extension authors to use
+[Controllers](https://loopback.io/doc/en/lb4/Controllers.html) instead of
+low-level Express handler API.
+
+TODO: Add documentation for extension authors to explain how an extension can
+contribute new controllers to the target app.
+
+### Migrate API transports
+
+TBD
+
+### Authentication & authorization
+
+TBD
+
+### Migrate Introspection
+
+TBD
 
 ## Overview of existing LB3 components
 
