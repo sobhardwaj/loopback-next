@@ -460,6 +460,11 @@ We can approach this incrementally:
 
 2. Find & document a solution for configurable REST APIs.
 
+An idea to consider: instead of adding/removing individual controller methods
+depending on the configuration, we can tell developers to add or remove the
+entire controller classes. That's already easy to achieve by adding or not
+adding a controller class to `this.controllers` array.
+
 **The following content is based on the assumption that such documentation
 already exists.**
 
