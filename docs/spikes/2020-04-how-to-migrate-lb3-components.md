@@ -368,18 +368,117 @@ sense than Dependency Injection and especially when working with existing
 > (e.g. `Application.tenantId`) and changes in persistence behavior (e.g. via
 > Operation Hooks)
 
-TBD
+We don't have a good story for LB4 components contributing Entities with CRUD
+storage and REST API. I am proposing to create two issues:
+
+1. A "feature parity" task to figure out what is our recommended solution for
+   components wishing to contribute an Entity with a Repository and a
+   Controller.
+2. A "migration guide" task to explain how to migrate existing a LB3 component
+   providing a model to a LB4 component using the new recommended approach.
+
+As a temporary workaround, we can advise the following solution:
+
+1. Use `lb4 import-lb3-models` to import a LB3 model into a LB4 entity (see the
+   instructions in the previous section).
+
+2. Use `lb4 repository` and `lb4 controller` to create a Repository and a
+   Controller class inside the LB4 extension. It may be necessary to add a dummy
+   datasource to make `lb4 repository` work.
+
+3. Remove `@inject` decorators from the scaffolded code, it will be up to the
+   application to set up dependency injection using the artifacts from the
+   application.
+
+I see two options how to wire dependencies from the application.
+
+**Option A: Add wrapper files to the app.**
+
+Benefits: the repository and the controller will be seen by other `lb4`
+commands.
+
+Repository file:
+
+```ts
+// src/repositories/installation.repository.ts
+import {InstallationRepository as BaseRepository} from 'loopback-component-push';
+
+export class InstallationRepository extends BaseRepository {
+  constructor(
+    @inject('datasources.db') // <-- use the datasource name from your app
+    dataSource: juggler.DataSource,
+  ) {
+    super(dataSource);
+  }
+}
+```
+
+Controller file:
+
+```ts
+// src/controllers/installation.controller.ts
+import {InstallationController as BaseController} from 'loopback-component-push';
+import {InstallationRepository} from '../repositories';
+
+export class InstallationController extends BaseController {
+  constructor(
+    @repository(InstallationRepository)
+    protected installationRepository: InstallationRepository,
+    // if the controller requires request/response or other dependencies,
+    // then we need to repeat them here :(
+    @inject(RestBindings.Http.CONTEXT) private requestContext: RequestContext,
+  ) {
+    super(installationRepository, requestContext);
+  }
+}
+```
+
+**Option B: wire dependencies inside the extension based on the config**
+
+Benefits: the user does not need to create any additional files.
+
+- In the repository implementation, don't decorate the first constructor
+  argument.
+
+- In the controller implementation, use the same decorators as if you were
+  writing a regular application controller.
+
+Component code to put it all together:
+
+```ts
+import {inject} from '@loopback/core';
+import {InstallationRepository} from './repositories';
+import {InstallationController} from './controllers';
+
+export class PushNotificationComponent implements Component {
+  controllers = [InstallationController];
+  repositories = [InstallationRepository];
+
+  constructor(
+    @inject(CoreBindings.APPLICATION_INSTANCE)
+    private application: RestApplication,
+    @config()
+    config: PushNotificationConfig = {},
+  ) {
+    inject(config.dataSourceKey)(InstallationRepository, undefined, 0);
+  }
+}
+```
+
+I am not sure how this approach will work when the entities contributed by an
+extension need to have a relation to Entities provided by the application. Is
+the user going to provide Repository classes for related models via the config
+too?
 
 > Add a custom Operation Hook to given models, with a config option to
 > enable/disable this feature. The list of models can be provided explicitly in
 > the component configuration or obtained dynamically via introspection (e.g.
 > all models having a "belongsTo" relation with the Group model)
 
-TBD
-
-> Add a custom Operation Hook to all app models matching given criteria (have a
-> "belongsTo" relation with the Group model, are listed in the component
-> config), plus a config option to enable/disable this feature.
+This is tricky because LB4 does not have first-class implementation of operation
+hooks yet. The current workaround is to leverage juggler's Operation Hooks as
+explained in
+[Migrating CRUD operation hooks](../site/migration/models/operation-hooks.md).
 
 TBD
 
@@ -960,3 +1059,7 @@ and apps consuming mixins from 3rd party components.
 Let's use the most popular mixin
 [loopback-ds-timestamp-mixin](https://www.npmjs.com/package/loopback-ds-timestamp-mixin)
 as an example component to drive the migration docs.
+
+```
+
+```
