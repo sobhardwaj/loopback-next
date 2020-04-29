@@ -36,8 +36,7 @@ export class RestExplorerComponent implements Component {
       );
     }
 
-    const absolutePath = swaggerUI.getAbsoluteFSPath();
-    application.static(explorerPath, absolutePath);
+    application.static(explorerPath, swaggerUI.getAbsoluteFSPath());
 
     // Disable redirect to externally hosted API explorer
     application.restServer.config.apiExplorer = {disabled: true};

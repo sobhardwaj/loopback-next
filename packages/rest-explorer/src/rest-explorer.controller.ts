@@ -5,7 +5,13 @@
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import {config, inject} from '@loopback/context';
-import {OpenApiSpecForm, RequestContext, RestBindings, RestServer, RestServerConfig} from '@loopback/rest';
+import {
+  OpenApiSpecForm,
+  RequestContext,
+  RestBindings,
+  RestServer,
+  RestServerConfig,
+} from '@loopback/rest';
 import ejs from 'ejs';
 import fs from 'fs';
 import path from 'path';
@@ -79,7 +85,7 @@ export class ExplorerController {
     }
     const data = {
       openApiSpecUrl,
-      swaggerThemeFile
+      swaggerThemeFile,
     };
 
     const homePage = templateFn(data);
